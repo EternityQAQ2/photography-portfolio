@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Linxaura photo gallery</title>
+    <meta
+      name="description"
+      content="Sophia Williams – an intrepid explorer through the lens."
+    />
+
+    <!-- Tailwind via CDN（Vite dev 下也能正常工作） -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              nothingyoucoulddo: ["Nothing You Could Do", "cursive"],
+              signika: ["Signika", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
+
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css"
+    />
+
+    <!-- Vue & Axios CDN（避免打包配置麻烦） -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/axios@1/dist/axios.min.js"></script>
+
+    <!-- favicon-->
+    <link rel="icon" type="image/x-icon" href="/dist/assets/camera.ico" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+
+  <body
+    class="dark:bg-black bg-white text-black dark:text-white px-5 md:px-20 transition-opacity duration-700 opacity-100"
+  >
+    <!-- --------------------  Navbar  -------------------- -->
+    <header class="flex w-full overflow-hidden pt-10 pb-1">
+      <nav
+        id="nav"
+        x-data="{ open: false }"
+        role="navigation"
+        class="w-full font-signika"
+      >
+        <div class="container mx-auto flex flex-wrap items-center md:flex-no-wrap">
+          <a href="/" class="text-2xl font-bold mr-auto">LINXAURA</a>
+
+          <!-- burger -->
+          <button
+            @click="open = !open"
+            class="md:hidden text-2xl focus:outline-none"
+          >
+            ☰
+          </button>
+
+          <!-- links -->
+          <ul
+            :class="open ? 'block' : 'hidden md:flex'"
+            class="w-full md:w-auto mt-5 md:mt-0 space-y-4 md:space-y-0 md:flex md:space-x-8 text-lg"
+          >
+            <li>
+                <a href="/"
+                   class="font-signika text-2xl">
+                   PORTFOLIO
+                <span class="hidden md:block h-0.5 bg-black dark:bg-white"></span>
+                </a>
+            </li>
+            <li>
+                <a href="/dist/about_me.html"
+                   class="hover:underline font-signika text-2xl">
+                  ABOUT ME
+                  <!-- 仅在 md 及以上尺寸显示一条 0.5px 的横线 -->
+                </a>
+            </li>
+            <li>
+                <a href="/dist/contact.html"
+                   class="hover:underline font-signika text-2xl">
+                   CONTACT
+                  <!-- 仅在 md 及以上尺寸显示一条 0.5px 的横线 -->
+                </a>
+            </li>
+          </ul>
+        </div>
+      </nav>
+    </header>
+
+    <!-- ===================================================
+         ❶  照片墙 + 上传功能（Vue 控制）
+    =================================================== -->
+    <div id="photowall" class="max-w-screen-xl mx-auto pt-10 pb-16">
+        <!-- 标题 + 上传按钮 -->
+        <div class="flex flex-wrap items-center justify-between mb-6 gap-4">
+          <h1 class="text-4xl font-bold font-signika">PORTFOLIO</h1>
+          <button
+            class="px-4 py-2 rounded-md bg-black text-white dark:bg-white dark:text-black transition hover:opacity-80"
+            @click="askUpload"
+          >
+            Upload Photo
+          </button>
+        </div>
+      
+        <!-- 上传表单：密码正确后才出现 -->
+        <form
+          v-if="showForm"
+          @submit.prevent="upload"
+          class="flex flex-wrap items-center gap-3 mb-8"
+        >
+          <input
+            v-model="title"
+            placeholder="Title (optional)"
+            class="border rounded-md p-2 flex-1"
+          />
+          <input
+            ref="fileInput"
+            type="file"
+            class="border rounded-md p-2 flex-1"
+            accept="image/*"
+            required
+          />
+          <button
+            type="submit"
+            class="px-4 py-2 rounded-md bg-emerald-600 text-white transition hover:bg-emerald-700"
+          >
+            Save
+          </button>
+        </form>
+      
+        <!-- 瀑布流照片墙 -->
+        <div class="columns-1 sm:columns-2 lg:columns-3 gap-2 space-y-2">
+          <a
+            v-for="img in images"
+            :key="img.id"
+            :href="img.url"
+            data-fancybox="gallery"
+            class="block overflow-hidden rounded-lg"
+          >
+            <img
+              :src="img.url"
+              :alt="img.title || ''"
+              class="w-full h-60 object-cover transition-transform duration-300 hover:scale-110"
+            />
+          </a>
+        </div>
+      </div>
+      
+      <!-- Vue + Axios 逻辑 -->
+      <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+      <script src="https://unpkg.com/axios@1/dist/axios.min.js"></script>
+      <script type="module">
+        const { createApp, ref, onMounted, unref } = Vue;
+      
+        createApp({
+          setup() {
+            const images     = ref([]);
+            const showForm   = ref(false);
+            const title      = ref("");
+            const fileInput  = ref(null);           // ⚑ 与模板中的 ref 同名！
+      
+            /* 载入现有图片 */
+            const load = () => {
+              axios.get("/api/images").then(({ data }) => (images.value = data));
+            };
+      
+            /* 点击 Upload Photo → 简单密码校验 */
+            const askUpload = () => {
+              const pwd = prompt("Enter upload password:");
+              if (pwd === "Hi,stealingpwdone!") showForm.value = true;
+              else if (pwd !== null) alert("Wrong password");
+            };
+      
+            /* 真正上传 */
+            const upload = () => {
+              const inputEl = unref(fileInput);
+              if (!inputEl || !inputEl.files.length) {
+                alert("Please choose a file first");
+                return;
+              }
+      
+              const fd = new FormData();
+              fd.append("file", inputEl.files[0]);
+              fd.append("title", title.value);
+      
+              axios
+                .post("/api/images", fd)
+                .then(() => {
+                  title.value = "";
+                  inputEl.value = "";
+                  showForm.value = false;
+                  load();                 // 刷新墙面
+                })
+                .catch((e) => alert("Upload failed: " + e));
+            };
+      
+            onMounted(() => {
+              load();
+              Fancybox.bind("[data-fancybox]", {});  // light‑box
+            });
+      
+            return { images, showForm, title, fileInput, askUpload, upload };
+          },
+        }).mount("#photowall");
+      </script>
+      <footer>
+        <div class="max-w-screen-xl py-16 mx-auto">
+          <div class="grid grid-cols-1 gap-8 text-center mx-auto">
+            <div>
+              <p class="font-signika"><b>LINXAURA</b></p>
+              <p class="mt-4 text-sm text-gray-600 dark:text-gray-300">
+                辽宁省大连市金普新区图强路321号<br />(86) 159 4263 0405
+              </p>
+              <div class="flex mx-auto">
+              </div>
+            </div>
+          </div>
+          <p class="mt-8 text-xs text-gray-600 dark:text-gray-300 text-center">
+            © 2023 Developed and Designed by
+            <a href="https://www.linkedin.com/in/joão-franco-452161195/" class="underline">João Franco</a>
+          </p>
+        </div>
+      </footer>
+  </body>
+</html>
