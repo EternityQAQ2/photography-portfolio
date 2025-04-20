@@ -2,6 +2,7 @@ import express from 'express';
 import multer  from 'multer';
 import path    from 'path';
 import { Image } from '../models/Image.js';
+//import { upload } from '../server.js'  // 或自己 export upload
 
 const router = express.Router();
 
@@ -13,7 +14,9 @@ const storage = multer.diskStorage({
     cb(null, `${unique}${path.extname(file.originalname)}`);
   },
 });
-const upload = multer({ storage });
+const upload = multer({ storage,
+  limits: { fileSize: 30 * 1024 * 1024 } // 允许上传 30MB 的文件
+ });
 
 /* ② 列表 */
 router.get('/', async (_, res) => {

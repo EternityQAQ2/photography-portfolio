@@ -1,13 +1,19 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
+  base: '/gallery/',   // ✅ 添加这一行：部署子路径
   plugins: [vue()],
+  build: {
+    // ✅ outDir 推荐保持为相对路径，方便部署
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
   server: {
     proxy: {
-      '/api':     'http://localhost:3000', // 你已有
-      '/uploads': 'http://localhost:3000', // ★ 新增：静态文件也代理
+      '/api': 'http://localhost:3000',     // API 接口代理
+      '/uploads': 'http://localhost:3000', // 静态图片代理
     },
   },
 })
